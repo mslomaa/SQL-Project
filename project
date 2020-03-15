@@ -1,0 +1,122 @@
+drop table wypozyczalnia
+drop table klient
+drop table film
+
+create table wypozyczalnia
+	(
+	wypozID int primary key,
+	klientID int,
+	filmID int, 
+	cena_wypozyczenia money default 0,
+	ilosc_dni_wyp int default 0
+	)
+
+
+create table klient
+	(
+	klientID int identity (1, 1) primary key,
+	Imie nvarchar(20),
+	nazwisko nvarchar(20),
+	pesel nvarchar(20),
+	ilosc_wypoz_historia int default 0,
+	bonus int default 0,
+	
+	)
+
+create table film
+	(
+	filmID int identity (1, 1) primary key,
+	klientID int,
+	tytul nvarchar(20) not null,
+	cena int not null,
+	typ nvarchar(20) not null,
+	
+	)
+alter table klient
+	add constraint klient_pesel
+	check
+	(pesel like '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]')
+
+alter table wypozyczalnia
+	add constraint klient_fk
+		foreign key (klientID) references klient(klientID)
+		 
+alter table wypozyczalnia
+	add constraint film_fk
+		foreign key (filmID) references film(filmID)
+
+insert film (tytul, cena, typ) values ('Joker', 40, 'nowy')
+insert film (tytul, cena, typ) values ('Irlandczyk', 40, 'nowy')
+insert film (tytul, cena, typ) values ('Boze Cialo', 40, 'nowy')
+insert film (tytul, cena, typ) values ('Zielona Mila', 30, 'stary')
+insert film (tytul, cena, typ) values ('Forrest Gump', 30, 'stary')
+insert film (tytul, cena, typ) values ('Matrix', 30, 'stary')
+insert film (tytul, cena, typ) values ('Incepcja', 30, 'zwykly')
+insert film (tytul, cena, typ) values ('Django', 30, 'zwykly')
+insert film (tytul, cena, typ) values ('Whiplash', 30, 'zwykly')
+insert into klient(imie, nazwisko, pesel) values ('Jan', 'Kowalski', '91024588759')
+insert into klient(imie, nazwisko, pesel) values ('Tomasz', 'Nowak', '78021142533')
+insert into klient(imie, nazwisko, pesel) values ('Marcin', 'krzak', '89042536457')
+insert into wypozyczalnia(wypozID) values (1)
+insert into wypozyczalnia(wypozID) values (2)
+insert into wypozyczalnia(wypozID) values (3)
+
+go
+alter procedure wypozyczenie(@klientID int, @filmID int, @ilosc_dni_wyp int)
+as
+begin
+	if not exists (select 1 from klient where klientID = @klientID)
+		begin
+			print 'klient o id - ' + convert(nvarchar(5), @klientId) + 'nie istnieje w bazie';
+			return;
+		end
+	if not exists (select 1 from film where filmID = @filmID)
+		begin
+			print 'film o id - ' + convert(nvarchar(5), @filmID) + 'nie istnieje w bazie';
+			return;
+		end
+	
+	declare @wyp_klientowi int;
+		set @wyp_klientowi = (select klientID from film where klientID = @klientID)
+		if @wyp_klientowi is not null
+		begin
+			print 'Film wypo¿yczony klientowi o id ' + convert(nvarchar(5), @wyp_klientowi)
+			return;
+		end
+	
+	declare @kwotawyp int;
+		set @kwotawyp = (select f.cena from film f where filmID = @filmID)
+	declare @typ nvarchar(20);
+		set @typ = (select f.typ from film f where filmID = @filmID)
+			
+			if @typ = 'nowy'
+				begin
+					set @kwotawyp = @kwotawyp * @ilosc_dni_wyp 
+				end
+			if @typ = 'stary' and @ilosc_dni_wyp > 4
+				begin
+					set @kwotawyp = @kwotawyp * (@ilosc_dni_wyp - 4)
+				end
+			if @typ = 'zwykly' and @ilosc_dni_wyp > 2
+				begin
+					set @kwotawyp = @kwotawyp * (@ilosc_dni_wyp - 2)
+				end
+			
+	
+	update klient set ilosc_wypoz_historia = ilosc_wypoz_historia + 1 where klientID = @klientID
+	update film set  klientID = @klientID where filmID = @filmID
+	update klient set bonus = bonus + 1 where klientID = @klientID
+	update wypozyczalnia set klientID = @klientID where wypozID = @klientID	
+	update wypozyczalnia set filmID = @filmID where klientID = @klientID
+	update wypozyczalnia set cena_wypozyczenia = ABS(@kwotawyp) where klientID = @klientID
+	update wypozyczalnia set ilosc_dni_wyp = @ilosc_dni_wyp where klientID = @klientID
+end
+
+
+exec wypozyczenie @klientID = 1, @filmID = 1, @ilosc_dni_wyp = 6
+exec wypozyczenie @klientID = 2, @filmID = 5, @ilosc_dni_wyp = 6
+exec wypozyczenie @klientID = 3, @filmID = 8, @ilosc_dni_wyp = 6
+
+select * from klient
+select * from film
+select * from wypozyczalnia
